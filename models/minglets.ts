@@ -11,6 +11,7 @@ const MetadataSchema = new Schema({
 });
 
 export interface IMinglet extends Document {
+    _id: string;
   name: string;
   ownerWallet: string;
   stats: {

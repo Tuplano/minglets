@@ -1,34 +1,36 @@
 "use client";
 
 import { useState, useEffect } from "react";
-
-interface Minglet {
-  _id: string;
-  name: string;
-  stats: {
-    hunger: number;
-    happiness: number;
+import { IMinglet } from "@/models/minglets";
+interface PhantomProvider {
+  isPhantom?: boolean;
+  connect: () => Promise<{ publicKey: { toString(): string } }>;
+  disconnect?: () => void;
+  publicKey?: {
+    toString(): string;
   };
-  metadata: {
-    age: number;
-    status: string;
-  };
-  ownerWallet: string;
 }
 
+declare global {
+  interface Window {
+    solana?: PhantomProvider;
+  }
+}
+
+
 export default function Simulation() {
-  const [minglets, setMinglets] = useState<Minglet[]>([]);
+  const [minglets, setMinglets] = useState<IMinglet[]>([]);
   const [loading, setLoading] = useState(true);
   const [wallet, setWallet] = useState<string | null>(null);
 
-  // 🔗 Phantom wallet detection
   const connectWallet = async () => {
     try {
-      const provider = (window as any).solana;
+      const provider = window.solana;
       if (!provider?.isPhantom) {
         alert("Phantom wallet not found. Install it first!");
         return;
       }
+
       const resp = await provider.connect();
       setWallet(resp.publicKey.toString());
     } catch (err) {
@@ -36,7 +38,6 @@ export default function Simulation() {
     }
   };
 
-  // 📡 Fetch Minglets
   const fetchMinglets = async () => {
     setLoading(true);
     try {
