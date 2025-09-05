@@ -1,6 +1,6 @@
-import mongoose, { Mongoose } from "mongoose";
+import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI as string;
+const MONGODB_URI: string = process.env.MONGODB_URI as string;
 
 if (!MONGODB_URI) {
   throw new Error(
@@ -8,50 +8,31 @@ if (!MONGODB_URI) {
   );
 }
 
-interface MongooseCache {
-  conn: Mongoose | null;
-  promise: Promise<Mongoose> | null;
-}
-
-declare global {
-  // allow global "mongooseCache" across hot reloads in dev
-  // (avoid duplicate connections)
-  // eslint-disable-next-line no-var
-  var mongooseCache: MongooseCache | undefined;
-}
-
-if (!global.mongooseCache) {
-  global.mongooseCache = { conn: null, promise: null };
-}
-
-const cached = global.mongooseCache;
-
-async function connectToDatabase(): Promise<Mongoose> {
-  if (cached.conn) {
-    return cached.conn;
-  }
-
-  if (!cached.promise) {
-    cached.promise = mongoose
-      .connect(MONGODB_URI, {
-        dbName: "Minglets", // this *should* force the DB
-      })
-      .then((mongoose) => {
-        console.log(
-          `✅ MongoDB connected → DB: ${mongoose.connection.name}`
-        );
-        return mongoose;
-      });
+let isConnected: boolean = false;
+export default async function connectToDatabase() {
+  if (isConnected) {
+    return;
   }
 
   try {
-    cached.conn = await cached.promise;
+    await mongoose.connect(MONGODB_URI);
+    isConnected = true;
+    console.log("MongoDB connected successfully");
   } catch (error) {
-    cached.promise = null;
-    throw error;
+    console.error("MongoDB connection error:", error);
+    throw new Error("Failed to connect to MongoDB");
   }
-
-  return cached.conn;
 }
 
-export default connectToDatabase;
+export async function disconnectFromDatabase() {
+  if (isConnected) {
+    try {
+      await mongoose.disconnect();
+      isConnected = false;
+      console.log("MongoDB disconnected successfully");
+    } catch (error) {
+      console.error("MongoDB disconnection error:", error);
+      throw new Error("Failed to disconnect from MongoDB");
+    }
+  }
+}

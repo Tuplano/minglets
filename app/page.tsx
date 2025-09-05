@@ -117,9 +117,36 @@ export default function Simulation() {
       {loading ? (
         <div className="text-center mt-10">Loading simulation...</div>
       ) : (
-        <>
-          <h1>tite</h1>
-        </>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {minglets.map((m) => (
+            <div
+              key={m._id}
+              className="p-4 border rounded-lg shadow-md bg-white"
+            >
+              <h2 className="text-xl font-semibold">{m.name}</h2>
+              <p>Owner: {m.ownerWallet}</p>
+              <p>Status: {m.metadata.status}</p>
+              <p>Age: {m.metadata.age.toFixed(1)}</p>
+              <p>Hunger: {m.stats.hunger.toFixed(0)}</p>
+              <p>Happiness: {m.stats.happiness.toFixed(0)}</p>
+
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => handleAction(m._id, "feed")}
+                  className="px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+                >
+                  Feed
+                </button>
+                <button
+                  onClick={() => handleAction(m._id, "play")}
+                  className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                >
+                  Play
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
