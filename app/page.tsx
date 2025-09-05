@@ -17,7 +17,6 @@ declare global {
   }
 }
 
-
 export default function Simulation() {
   const [minglets, setMinglets] = useState<IMinglet[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,7 +117,9 @@ export default function Simulation() {
       {loading ? (
         <div className="text-center mt-10">Loading simulation...</div>
       ) : (
-<>tite</>
+        <>
+          <h1>tite</h1>
+        </>
       )}
     </div>
   );
