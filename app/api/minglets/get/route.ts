@@ -8,7 +8,7 @@ export async function GET() {
     const minglets = await Minglet.find({});
     return NextResponse.json(minglets);
   } catch (error) {
-    console.error(error);
+    console.log(error);
     return NextResponse.json({ message: "Failed to fetch Minglets" }, { status: 500 });
   }
 }

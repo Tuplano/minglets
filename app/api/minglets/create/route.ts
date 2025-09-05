@@ -20,7 +20,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(newMinglet, { status: 201 });
   } catch (error) {
-    console.error(error);
+    console.log(error);
     return NextResponse.json({ message: "Failed to create Minglet" }, { status: 500 });
   }
 }
