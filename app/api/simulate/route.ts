@@ -17,23 +17,27 @@ export async function GET() {
 
       m.stats.happiness = Math.max(m.stats.happiness - hoursPassed, 0);
 
-      m.metadata.age += hoursPassed / 24;
+      m.stats.age += hoursPassed / 24;
 
-      if (m.stats.hunger <= 0) {
-        m.metadata.status = "starving";
-      } else if (m.stats.happiness <= 20) {
-        m.metadata.status = "sad";
+      if (m.stats.hunger <= 0 || m.stats.happiness <= 0) {
+        m.isAlive = false;
       } else {
-        m.metadata.status = "healthy";
+        m.isAlive = true;
       }
 
       m.lastUpdated = new Date();
+
       await m.save();
     }
 
-    return NextResponse.json({ message: "Simulation tick complete for all Minglets" });
+    return NextResponse.json({
+      message: "Simulation tick complete for all Minglets",
+    });
   } catch (error) {
     console.error("Simulation tick error:", error);
-    return NextResponse.json({ message: "Error running simulation tick" }, { status: 500 });
+    return NextResponse.json(
+      { message: "Error running simulation tick" },
+      { status: 500 }
+    );
   }
 }

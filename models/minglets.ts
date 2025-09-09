@@ -1,27 +1,24 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 const StatsSchema = new Schema({
-  hunger: { type: Number, default: 100 },
-  happiness: { type: Number, default: 100 },
-});
-
-const MetadataSchema = new Schema({
-  age: { type: Number, default: 0 },
-  status: { type: String, default: "alive" },
+  hunger: { type: Number, min: 0, max: 100, default: 100 },
+  happiness: { type: Number, min: 0, max: 100, default: 100 },
+  age: { type: Number, default: 0 }, // in days
 });
 
 export interface IMinglet extends Document {
-    _id: string;
+  _id: string;
   name: string;
   ownerWallet: string;
   stats: {
     hunger: number;
     happiness: number;
-  };
-  metadata: {
     age: number;
-    status: string;
   };
+  personality: string[];
+  generation: number;
+  parents: string[];
+  isAlive: boolean;
   lastUpdated: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -29,10 +26,13 @@ export interface IMinglet extends Document {
 
 const MingletSchema: Schema = new Schema(
   {
-    name: { type: String, required: true },
-    ownerWallet: { type: String, default: "test_wallet" },
+    name: { type: String, required: true, trim: true },
+    ownerWallet: { type: String, required: true, index: true },
     stats: { type: StatsSchema, default: () => ({}) },
-    metadata: { type: MetadataSchema, default: () => ({}) },
+    personality: { type: [String], default: [] },
+    generation: { type: Number, default: 1 },
+    parents: { type: [String], default: [] },
+    isAlive: { type: Boolean, default: true },
     lastUpdated: { type: Date, default: Date.now },
   },
   { timestamps: true }
