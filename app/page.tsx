@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { IMinglet } from "@/models/minglets";
+
 interface PhantomProvider {
   isPhantom?: boolean;
   connect: () => Promise<{ publicKey: { toString(): string } }>;
@@ -124,13 +125,26 @@ export default function Simulation() {
               className="p-4 border rounded-lg shadow-md bg-white"
             >
               <h2 className="text-xl font-semibold">{m.name}</h2>
-              <p>Owner: {m.ownerWallet}</p>
-              <p>Status: {m.metadata.status}</p>
-              <p>Age: {m.metadata.age.toFixed(1)}</p>
-              <p>Hunger: {m.stats.hunger.toFixed(0)}</p>
-              <p>Happiness: {m.stats.happiness.toFixed(0)}</p>
+              <p>👤 Owner: {m.ownerWallet}</p>
+              <p>📌 Alive: {m.isAlive ? "✅ Yes" : "❌ No"}</p>
+              <p>🎂 Age: {m.stats.age.toFixed(1)}</p>
+              <p>🍗 Hunger: {m.stats.hunger.toFixed(0)}</p>
+              <p>😊 Happiness: {m.stats.happiness.toFixed(0)}</p>
+              <p>🧬 Generation: {m.generation}</p>
 
-              <div className="flex gap-2 mt-2">
+              {/* Personality section */}
+              {m.personality?.length > 0 && (
+                <div className="mt-3 p-2 bg-gray-50 rounded">
+                  <p className="font-medium">✨ Personality Traits:</p>
+                  <ul className="list-disc ml-5 text-sm">
+                    {m.personality.map((trait, i) => (
+                      <li key={i}>{trait}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="flex gap-2 mt-3">
                 <button
                   onClick={() => handleAction(m._id, "feed")}
                   className="px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600"
