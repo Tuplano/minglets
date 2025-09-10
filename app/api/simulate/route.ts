@@ -7,12 +7,8 @@ const CRON_SECRET = process.env.CRON_SECRET || "hehe";
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const token = url.searchParams.get("secret") || req.headers.get("x-cron-key");
-
-    
-    // add a debug log
-    console.log("🔹 Incoming token:", JSON.stringify(token));
-    console.log("🔹 Env CRON_SECRET:", JSON.stringify(CRON_SECRET));
+    const token =
+      url.searchParams.get("secret") || req.headers.get("x-cron-key");
 
     if (token !== CRON_SECRET) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -25,7 +21,7 @@ export async function GET(req: Request) {
 
     for (const m of minglets) {
       const last = m.lastUpdated?.getTime() || now;
-      const hoursPassed = (now - last) / (1000 * 60 * 60); 
+      const hoursPassed = (now - last) / (1000 * 60 * 60);
 
       m.stats.hunger = Math.max(m.stats.hunger - hoursPassed * 2, 0);
       m.stats.happiness = Math.max(m.stats.happiness - hoursPassed, 0);
