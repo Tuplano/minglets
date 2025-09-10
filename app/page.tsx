@@ -1,15 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Application, Graphics, TilingSprite, Assets } from "pixi.js";
 import { IMinglet } from "@/models/minglets";
+import MingletOverlay from "./components/mingletsOverlay";
+import ProfileOverlay from "./components/mingletProfileOverlay";
+import bs58 from "bs58";
 
 interface PhantomProvider {
   isPhantom?: boolean;
   connect: () => Promise<{ publicKey: { toString(): string } }>;
   disconnect?: () => void;
-  publicKey?: {
-    toString(): string;
-  };
+  publicKey?: { toString(): string };
+  signMessage?: (
+    message: Uint8Array,
+    encoding: string
+  ) => Promise<Uint8Array | { signature: Uint8Array }>;
 }
 
 declare global {
@@ -22,6 +28,8 @@ export default function Simulation() {
   const [minglets, setMinglets] = useState<IMinglet[]>([]);
   const [loading, setLoading] = useState(true);
   const [wallet, setWallet] = useState<string | null>(null);
+  const [selectedMinglet, setSelectedMinglet] = useState<IMinglet | null>(null);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
 
   const connectWallet = async () => {
     try {
@@ -31,17 +39,65 @@ export default function Simulation() {
         return;
       }
 
+      // 1. Connect wallet
       const resp = await provider.connect();
-      setWallet(resp.publicKey.toString());
+      const pubkey = resp.publicKey.toString();
+
+      // 2. Ask server for nonce
+      const nonceRes = await fetch("/api/auth/nonce", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publicKey: pubkey }),
+      });
+      const { nonce } = await nonceRes.json();
+
+      // 3. Sign the message with Phantom
+      const message = `Minglets Authentication\n\nNonce: ${nonce}`;
+      const encoded = new TextEncoder().encode(message);
+
+      type SignedMessage = Uint8Array | { signature: Uint8Array };
+      const signed: SignedMessage | undefined = await provider.signMessage?.(
+        encoded,
+        "utf8"
+      );
+
+      if (!signed) throw new Error("Wallet did not return a signature");
+
+      const signatureBytes =
+        signed instanceof Uint8Array ? signed : signed.signature;
+
+      const signatureBase58 = bs58.encode(Buffer.from(signatureBytes));
+
+      // 4. Verify signature with server → sets cookie
+      const verifyRes = await fetch("/api/auth/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          publicKey: pubkey,
+          signature: signatureBase58,
+          nonce,
+        }),
+      });
+
+      if (!verifyRes.ok) throw new Error("Signature verification failed");
+
+      setWallet(pubkey);
+      console.log("✅ Wallet authenticated with cookie");
+      await fetchMinglets();
     } catch (err) {
-      console.error(err);
+      console.error("Wallet connect error:", err);
+      setWallet(null);
     }
   };
 
   const fetchMinglets = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/minglets/get");
+      const res = await fetch("/api/minglets/get", {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch minglets");
       const data = await res.json();
       setMinglets(data);
     } catch (err) {
@@ -55,115 +111,91 @@ export default function Simulation() {
     fetchMinglets();
   }, []);
 
-  // ➕ Create Minglet
-  const createMinglet = async () => {
-    if (!wallet) return alert("Connect your wallet first!");
-    const name = prompt("Enter a name for your Minglet:");
-    if (!name) return;
+  useEffect(() => {
+    if (!canvasRef.current || loading) return;
 
-    try {
-      await fetch("/api/minglets/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, ownerWallet: wallet }),
+    const app = new Application();
+
+    app
+      .init({
+        resizeTo: window,
+        backgroundAlpha: 0,
+      })
+      .then(async () => {
+        if (!canvasRef.current) return;
+        canvasRef.current.appendChild(app.canvas);
+
+        app.stage.removeChildren();
+
+        // Background
+        const texture = await Assets.load("/textures/grass.png");
+        const tiling = new TilingSprite({
+          texture,
+          width: app.screen.width,
+          height: app.screen.height,
+        });
+
+        tiling.tileScale.set(0.25, 0.25);
+        app.stage.addChild(tiling);
+
+        app.renderer.on("resize", (width, height) => {
+          tiling.width = width;
+          tiling.height = height;
+        });
+
+        // Add minglets as circles
+        minglets.forEach((m) => {
+          const g = new Graphics();
+          g.beginFill(m.isAlive ? 0x00ff99 : 0x999999);
+          g.drawCircle(0, 0, 20);
+          g.endFill();
+
+          g.x = Math.random() * app.screen.width;
+          g.y = Math.random() * app.screen.height;
+
+          g.eventMode = "static";
+          g.cursor = "pointer";
+
+          g.on("pointertap", () => {
+            setSelectedMinglet(m);
+          });
+
+          app.stage.addChild(g);
+
+          app.ticker.add(() => {
+            g.x += Math.random() * 2 - 1;
+            g.y += Math.random() * 2 - 1;
+          });
+        });
       });
-      fetchMinglets();
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
-const handleAction = async (id: string, action: "feed" | "play") => {
-  if (!wallet) return alert("Connect your wallet first!");
-
-  try {
-    await fetch("/api/minglets/action", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, action, wallet }),
-    });
-    fetchMinglets();
-  } catch (err) {
-    console.error(err);
-  }
-};
-
+    return () => {
+      app.destroy(true, { children: true });
+    };
+  }, [minglets, loading]);
 
   return (
-    <div className="p-6">
-      <h1 className="text-4xl font-bold mb-4 text-center">
-        🌟 Minglets Simulation World 🌟
-      </h1>
+    <div className="relative w-full h-screen">
+      <div ref={canvasRef} className="absolute inset-0" />
 
-      {/* Wallet Connect / Info */}
-      <div className="text-center mb-6">
-        {wallet ? (
-          <div>
-            Connected: <span className="font-mono">{wallet}</span>
-            <button
-              onClick={createMinglet}
-              className="ml-4 px-3 py-1 bg-purple-500 text-white rounded hover:bg-purple-600"
-            >
-              Create Minglet
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={connectWallet}
-            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-          >
-            Connect Phantom Wallet
-          </button>
-        )}
-      </div>
+      <MingletOverlay
+        wallet={wallet}
+        connectWallet={connectWallet}
+        minglets={minglets}
+        loading={loading}
+        refreshMinglets={fetchMinglets}
+      />
 
-      {loading ? (
-        <div className="text-center mt-10">Loading simulation...</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {minglets.map((m) => (
-            <div
-              key={m._id}
-              className="p-4 border rounded-lg shadow-md bg-white"
-            >
-              <h2 className="text-xl font-semibold">{m.name}</h2>
-              <p>👤 Owner: {m.ownerWallet}</p>
-              <p>📌 Alive: {m.isAlive ? "✅ Yes" : "❌ No"}</p>
-              <p>🎂 Age: {m.stats.age.toFixed(1)}</p>
-              <p>🍗 Hunger: {m.stats.hunger.toFixed(0)}</p>
-              <p>😊 Happiness: {m.stats.happiness.toFixed(0)}</p>
-              <p>🧬 Generation: {m.generation}</p>
-
-              {/* Personality section */}
-              {m.personality?.length > 0 && (
-                <div className="mt-3 p-2 bg-gray-50 rounded">
-                  <p className="font-medium">✨ Personality Traits:</p>
-                  <ul className="list-disc ml-5 text-sm">
-                    {m.personality.map((trait, i) => (
-                      <li key={i}>{trait}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => handleAction(m._id, "feed")}
-                  className="px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600"
-                >
-                  Feed
-                </button>
-                <button
-                  onClick={() => handleAction(m._id, "play")}
-                  className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                >
-                  Play
-                </button>
-              </div>
-            </div>
-          ))}
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+          <p className="text-white text-xl">Loading simulation...</p>
         </div>
       )}
+
+      <ProfileOverlay
+        minglet={selectedMinglet}
+        onClose={() => setSelectedMinglet(null)}
+      />
     </div>
   );
 }
