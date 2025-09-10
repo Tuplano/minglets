@@ -73,19 +73,21 @@ export default function Simulation() {
     }
   };
 
-  // 🎮 Actions: feed / play
-  const handleAction = async (id: string, action: "feed" | "play") => {
-    try {
-      await fetch(`/api/minglets/${action}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-      fetchMinglets();
-    } catch (err) {
-      console.error(err);
-    }
-  };
+const handleAction = async (id: string, action: "feed" | "play") => {
+  if (!wallet) return alert("Connect your wallet first!");
+
+  try {
+    await fetch("/api/minglets/action", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, action, wallet }),
+    });
+    fetchMinglets();
+  } catch (err) {
+    console.error(err);
+  }
+};
+
 
   return (
     <div className="p-6">
