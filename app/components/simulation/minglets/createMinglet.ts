@@ -1,4 +1,3 @@
-// createMinglet.ts
 import { Application, AnimatedSprite } from "pixi.js";
 import { loadMingletAnimations } from "./animation";
 import {
@@ -7,6 +6,7 @@ import {
   randomDirection,
   distance,
   setDirection,
+  decideDesire, // 🆕 Import the new function
 } from "./state";
 import { IMinglet } from "@/models/minglets";
 
@@ -29,7 +29,6 @@ export default async function createMinglet(
   sprite.cursor = "pointer";
   sprite.on("pointertap", () => onSelect(minglet));
 
-  // Create speech bubble
   const bubble = document.createElement("div");
   bubble.className =
     "absolute bg-white border border-gray-400 text-xs px-2 py-1 rounded shadow";
@@ -39,25 +38,20 @@ export default async function createMinglet(
   sprite.bubble = bubble;
 
   if (!minglet.isAlive) {
-    // ✅ DEAD STATE: Show dead texture and stop animations
-    sprite.textures = animations.dead; // <-- make sure you load `dead` in loadMingletAnimations
+    sprite.textures = animations.dead;
     sprite.loop = false;
-    sprite.animationSpeed = 0; 
+    sprite.animationSpeed = 0;
     sprite.gotoAndStop(0);
     sprite.bubble.style.display = "none";
     return sprite;
   }
 
-  // Otherwise, continue with normal behavior
-  sprite.desire =
-    Math.random() < 0.4 ? "wander" : Math.random() < 0.7 ? "idle" : "talk";
+  // 🆕 Personality-based initial state
+  sprite.desire = decideDesire(sprite);
   sprite.currentState = sprite.desire;
-
-  // Set initial state
   setMingletState(sprite, animations);
 
   app.ticker.add(() => {
-    // Position bubble relative to sprite
     if (bubble.style.display === "block") {
       const rect = app.canvas.getBoundingClientRect();
       bubble.style.left = rect.left + sprite.x + "px";
@@ -67,15 +61,8 @@ export default async function createMinglet(
     sprite.stateTimer--;
 
     if (sprite.stateTimer <= 0) {
-      // Change desire occasionally
-      if (Math.random() < 0.3) {
-        sprite.desire =
-          Math.random() < 0.4
-            ? "wander"
-            : Math.random() < 0.7
-            ? "idle"
-            : "talk";
-      }
+      // 🆕 Decide again based on personality
+      sprite.desire = decideDesire(sprite);
       setMingletState(sprite, animations, sprite.desire);
     }
 
@@ -87,8 +74,7 @@ export default async function createMinglet(
       if (sprite.direction === "right") {
         setDirection(sprite, animations, "right");
         sprite.x += speed;
-        if (sprite.x > app.screen.width - 20)
-          sprite.direction = randomDirection();
+        if (sprite.x > app.screen.width - 20) sprite.direction = randomDirection();
       } else if (sprite.direction === "left") {
         setDirection(sprite, animations, "left");
         sprite.x -= speed;
@@ -100,8 +86,7 @@ export default async function createMinglet(
       } else if (sprite.direction === "down") {
         setDirection(sprite, animations, "down");
         sprite.y += speed;
-        if (sprite.y > app.screen.height - 20)
-          sprite.direction = randomDirection();
+        if (sprite.y > app.screen.height - 20) sprite.direction = randomDirection();
       }
 
       if (mingletsRef) {
