@@ -3,7 +3,7 @@ import { IMinglet } from "@/models/minglets";
 import { MingletAnimations } from "./animation";
 
 // --- Types ---
-export type MingletState = "wander" | "idle" | "talk";
+export type MingletState = "wander" | "idle" | "talk" | "eating" | "playing";
 export type Direction = "up" | "down" | "left" | "right";
 
 export interface MingletSprite extends AnimatedSprite {
@@ -39,7 +39,7 @@ export function setMingletState(
 
   switch (target) {
     case "wander":
-      sprite.stateTimer = 80 + Math.floor(Math.random() * 160);
+      sprite.stateTimer = 240 + Math.floor(Math.random() * 240);
       sprite.direction = randomDirection();
       sprite.textures = animations[sprite.direction];
       sprite.animationSpeed = 0.25;
@@ -48,7 +48,7 @@ export function setMingletState(
       break;
 
     case "idle":
-      sprite.stateTimer = 20 + Math.floor(Math.random() * 40);
+      sprite.stateTimer = 180 + Math.floor(Math.random() * 180);
       sprite.textures = animations.idle;
       sprite.animationSpeed = 0.15;
       sprite.play();
@@ -56,12 +56,25 @@ export function setMingletState(
       break;
 
     case "talk":
-      sprite.stateTimer = 60 + Math.floor(Math.random() * 60);
+      sprite.stateTimer = 300 + Math.floor(Math.random() * 180);
       sprite.textures = animations.talk;
       sprite.animationSpeed = 0.35;
       sprite.gotoAndPlay(0);
       sprite.bubble.style.display = "block";
       sprite.bubble.innerText = "...";
+      break;
+
+    case "eating":
+      sprite.stateTimer = 360 + Math.floor(Math.random() * 120);
+      sprite.textures = animations.eat;
+      sprite.animationSpeed = 0.2;
+      sprite.play();
+      sprite.bubble.style.display = "block";
+      sprite.bubble.innerText = "🍎 Eating...";
+      sprite.minglet.stats.hunger = Math.min(
+        sprite.minglet.stats.hunger + 10,
+        100
+      );
       break;
   }
 }
@@ -78,6 +91,33 @@ export function setDirection(
   }
 }
 
+// --- Personality Traits ---
+export const teenTraits = [
+  "adventurous",
+  "rebellious",
+  "social",
+  "energetic",
+  "moody",
+  "dreamy",
+  "competitive",
+  "creative",
+  "independent",
+  "stubborn",
+] as const;
+
+export const adultTraits = [
+  "responsible",
+  "calm",
+  "wise",
+  "focused",
+  "protective",
+  "disciplined",
+  "caring",
+  "hardworking",
+  "strategic",
+  "practical",
+] as const;
+
 // --- Personality Bias Table ---
 type PersonalityEffect = Partial<{
   wander: number;
@@ -86,6 +126,7 @@ type PersonalityEffect = Partial<{
 }>;
 
 export const personalityBias: Record<string, PersonalityEffect> = {
+  // Base personality
   curious: { wander: +0.3, idle: -0.1 },
   playful: { wander: +0.2, talk: +0.1 },
   shy: { talk: -0.2, idle: +0.2 },
@@ -96,10 +137,38 @@ export const personalityBias: Record<string, PersonalityEffect> = {
   hungry: { wander: +0.2 },
   noisy: { talk: +0.25 },
   gentle: { idle: +0.1 },
+
+  // Teen traits
+  adventurous: { wander: +0.4 },
+  rebellious: { wander: +0.3, talk: -0.1 },
+  social: { talk: +0.4 },
+  energetic: { wander: +0.3, idle: -0.2 },
+  moody: { idle: +0.2, talk: -0.2 },
+  dreamy: { idle: +0.3 },
+  competitive: { wander: +0.2 },
+  creative: { talk: +0.1, idle: +0.1 },
+  independent: { wander: +0.25 },
+  stubborn: { idle: +0.2 },
+
+  // Adult traits
+  responsible: { idle: +0.2 },
+  calm: { idle: +0.3 },
+  wise: { talk: +0.1, idle: +0.2 },
+  focused: { idle: +0.3, wander: -0.1 },
+  protective: { talk: +0.15 },
+  disciplined: { idle: +0.4, wander: -0.2 },
+  caring: { talk: +0.2 },
+  hardworking: { wander: +0.2 },
+  strategic: { idle: +0.3 },
+  practical: { idle: +0.2 },
 };
 
-// --- Decide Next Desire Based on Personality ---
 export function decideDesire(sprite: MingletSprite): MingletState {
+  const { hunger, happiness } = sprite.minglet.stats;
+
+  if (hunger < 40 && Math.random() < 0.4) return "eating";
+  if (happiness < 50 && Math.random() < 0.3) return "playing";
+
   let wanderChance = 0.3;
   let talkChance = 0.3;
   let idleChance = 0.4;
@@ -114,7 +183,6 @@ export function decideDesire(sprite: MingletSprite): MingletState {
     }
   });
 
-  // normalize so probabilities sum to 1
   const total = wanderChance + talkChance + idleChance;
   wanderChance /= total;
   talkChance /= total;

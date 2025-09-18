@@ -8,7 +8,9 @@ export interface MingletAnimations {
   right: Texture[];
   idle: Texture[];
   talk: Texture[];
+  eat: Texture[];
   dead: Texture[];
+  stateTimer: number;
 }
 
 export async function loadMingletAnimations(): Promise<MingletAnimations> {
@@ -18,6 +20,7 @@ export async function loadMingletAnimations(): Promise<MingletAnimations> {
   const rightSheet = await Assets.load("/textures/minglet-right.png");
   const idleSheet = await Assets.load("/textures/minglet-idle.png");
   const talkSheet = await Assets.load("/textures/minglet-talk.png");
+  const eatingsheet = await Assets.load("/textures/minglet-eating.png");
   const deadSheet = await Assets.load("/textures/minglet-dead.png");
 
   function sliceRow(sheet: any, frameCount: number): Texture[] {
@@ -42,6 +45,7 @@ export async function loadMingletAnimations(): Promise<MingletAnimations> {
     right: sliceRow(rightSheet, 3),
     idle: sliceRow(idleSheet, 2),
     talk: sliceRow(talkSheet, 2),
+    eat: sliceRow(eatingsheet, 2),
     dead: sliceRow(deadSheet, 1),
   };
 }

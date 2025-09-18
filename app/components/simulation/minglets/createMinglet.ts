@@ -6,7 +6,7 @@ import {
   randomDirection,
   distance,
   setDirection,
-  decideDesire, // 🆕 Import the new function
+  decideDesire,
 } from "./state";
 import { IMinglet } from "@/models/minglets";
 
@@ -46,10 +46,8 @@ export default async function createMinglet(
     return sprite;
   }
 
-  // 🆕 Personality-based initial state
   sprite.desire = decideDesire(sprite);
-  sprite.currentState = sprite.desire;
-  setMingletState(sprite, animations);
+  setMingletState(sprite, animations, sprite.desire);
 
   app.ticker.add(() => {
     if (bubble.style.display === "block") {
@@ -58,14 +56,15 @@ export default async function createMinglet(
       bubble.style.top = rect.top + sprite.y - 30 + "px";
     }
 
+    // State countdown
     sprite.stateTimer--;
 
     if (sprite.stateTimer <= 0) {
-      // 🆕 Decide again based on personality
       sprite.desire = decideDesire(sprite);
       setMingletState(sprite, animations, sprite.desire);
     }
 
+    // --- MOVEMENT ---
     if (sprite.currentState === "wander" && sprite.desire !== "talk") {
       if (Math.random() < 0.01) sprite.direction = randomDirection();
 
@@ -102,18 +101,6 @@ export default async function createMinglet(
       }
 
       sprite.animationSpeed = 0.15;
-    } else if (sprite.currentState === "idle") {
-      if (sprite.textures !== animations.idle) {
-        sprite.textures = animations.idle;
-        sprite.animationSpeed = 0.1;
-        sprite.gotoAndPlay(0);
-      }
-    } else if (sprite.currentState === "talk") {
-      if (sprite.textures !== animations.talk) {
-        sprite.textures = animations.talk;
-        sprite.animationSpeed = 0.1;
-        sprite.gotoAndPlay(0);
-      }
     }
   });
 
