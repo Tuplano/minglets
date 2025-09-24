@@ -39,7 +39,7 @@ export function setMingletState(
 
   switch (target) {
     case "wander":
-      sprite.stateTimer = 240 + Math.floor(Math.random() * 240);
+      sprite.stateTimer = 600 + Math.floor(Math.random() * 600);
       sprite.direction = randomDirection();
       sprite.textures = animations[sprite.direction];
       sprite.animationSpeed = 0.25;
@@ -48,7 +48,7 @@ export function setMingletState(
       break;
 
     case "idle":
-      sprite.stateTimer = 180 + Math.floor(Math.random() * 180);
+      sprite.stateTimer = 480 + Math.floor(Math.random() * 480);
       sprite.textures = animations.idle;
       sprite.animationSpeed = 0.15;
       sprite.play();
@@ -56,7 +56,7 @@ export function setMingletState(
       break;
 
     case "talk":
-      sprite.stateTimer = 300 + Math.floor(Math.random() * 180);
+      sprite.stateTimer = 600 + Math.floor(Math.random() * 360);
       sprite.textures = animations.talk;
       sprite.animationSpeed = 0.35;
       sprite.gotoAndPlay(0);
@@ -65,16 +65,13 @@ export function setMingletState(
       break;
 
     case "eating":
-      sprite.stateTimer = 360 + Math.floor(Math.random() * 120);
+      sprite.stateTimer = 360 + Math.floor(Math.random() * 200);
       sprite.textures = animations.eat;
       sprite.animationSpeed = 0.2;
       sprite.play();
       sprite.bubble.style.display = "block";
       sprite.bubble.innerText = "🍎 Eating...";
-      sprite.minglet.stats.hunger = Math.min(
-        sprite.minglet.stats.hunger + 10,
-        100
-      );
+      sprite.minglet.stats.hunger = Math.min(sprite.minglet.stats.hunger + 10, 100);
       break;
   }
 }
@@ -163,6 +160,7 @@ export const personalityBias: Record<string, PersonalityEffect> = {
   practical: { idle: +0.2 },
 };
 
+// --- Decide Desire ---
 export function decideDesire(sprite: MingletSprite): MingletState {
   const { hunger, happiness } = sprite.minglet.stats;
 

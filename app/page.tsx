@@ -1,65 +1,74 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { io } from "socket.io-client";
 import { IMinglet } from "@/models/minglets";
+import { ITree } from "@/models/trees";
 import MingletOverlay from "./components/mingletsOverlay";
 import ProfileOverlay from "./components/mingletProfileOverlay";
 import MingletWorld from "./components/simulation/mingletWorld";
 import { usePhantomWallet } from "./hooks/usePhantomWallet";
 
+// Connect socket using env var
+const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL!, {
+  transports: ["websocket"],
+});
+
 export default function Simulation() {
   const [minglets, setMinglets] = useState<IMinglet[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [trees, setTrees] = useState<ITree[]>([]);
   const [selectedMinglet, setSelectedMinglet] = useState<IMinglet | null>(null);
 
   const { wallet, connectWallet } = usePhantomWallet({
-    onConnect: () => fetchMinglets(),
-    onDisconnect: () => setMinglets([]),
+    onConnect: () => {
+      fetchTrees();
+    },
+    onDisconnect: () => {
+      setMinglets([]);
+      setTrees([]);
+    },
   });
 
-  const fetchMinglets = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/minglets/get", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch minglets");
-      setMinglets(await res.json());
-    } catch (err) {
-      console.error("❌ Failed to fetch minglets:", err);
-    } finally {
-      setLoading(false);
-    }
+  // --- Subscribe to socket updates ---
+  useEffect(() => {
+    socket.on("minglets_update", (data: IMinglet[]) => {
+      setMinglets(data);
+    });
+
+    return () => {
+      socket.off("minglets_update");
+    };
   }, []);
 
-  useEffect(() => {
-    fetchMinglets();
-  }, [fetchMinglets]);
+  // --- Fetch Trees from API ---
+  const fetchTrees = async () => {
+    try {
+      const res = await fetch("/api/assets/getTrees");
+      if (!res.ok) throw new Error("Failed to fetch trees");
+      const data: ITree[] = await res.json();
+      setTrees(data);
+    } catch (err) {
+      console.error("❌ Failed to fetch trees:", err);
+    }
+  };
 
   return (
     <div className="relative w-full h-screen">
-      {/* 🌱 World Simulation */}
       <MingletWorld
         minglets={minglets}
-        loading={loading}
+        trees={trees}
+        loading={false}
         onSelectMinglet={setSelectedMinglet}
       />
 
-      {/* 🛠️ Overlay UI */}
       <MingletOverlay
         wallet={wallet}
         connectWallet={connectWallet}
         minglets={minglets}
-        loading={loading}
-        refreshMinglets={fetchMinglets}
+        loading={false}
+        refreshMinglets={() => {}}
       />
 
-      {/* ⏳ Loading */}
-      {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-          <p className="text-white text-xl">Loading simulation...</p>
-        </div>
-      )}
-
-      {/* 📄 Profile Overlay */}
       <ProfileOverlay
         minglet={selectedMinglet}
         onClose={() => setSelectedMinglet(null)}
