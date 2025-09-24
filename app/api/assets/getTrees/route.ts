@@ -6,6 +6,7 @@ export async function GET() {
   try {
     await connectToDatabase();
     const trees = await Tree.find({});
+    console.log("🌳 Trees from API:", trees);
     return NextResponse.json(trees);
   } catch (error) {
     console.log(error);
