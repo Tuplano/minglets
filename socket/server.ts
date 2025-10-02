@@ -1,34 +1,15 @@
-// socket/server.ts
 import "dotenv/config";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import mongoose from "mongoose";
-import Minglet from "../models/minglets";
+import { IMinglet } from "../models/minglets";
+import MingletModel from "../models/minglets";
 
-// --- Setup ---
-const httpServer = createServer();
-const io = new Server(httpServer, { cors: { origin: "*" } });
+// Personality bias table
+type PersonalityEffect = Partial<Record<IMinglet["currentState"], number>>;
 
-mongoose
-  .connect(process.env.MONGODB_URI!)
-  .then(() => console.log("✅ Connected to MongoDB"))
-  .catch((err) => console.error("❌ MongoDB error:", err));
-
-// --- Types ---
-type MingletState = "wander" | "idle" | "talk" | "eating" | "playing";
-type Direction = "up" | "down" | "left" | "right";
-
-// --- Direction helper ---
-function getDirection(dx: number, dy: number): Direction {
-  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "right" : "left";
-  return dy > 0 ? "down" : "up";
-}
-
-// --- Personality bias table ---
-const personalityBias: Record<
-  string,
-  Partial<{ wander: number; talk: number; idle: number }>
-> = {
+export const personalityBias: Record<string, PersonalityEffect> = {
+  // Base personality
   curious: { wander: +0.3, idle: -0.1 },
   playful: { wander: +0.2, talk: +0.1 },
   shy: { talk: -0.2, idle: +0.2 },
@@ -39,6 +20,8 @@ const personalityBias: Record<
   hungry: { wander: +0.2 },
   noisy: { talk: +0.25 },
   gentle: { idle: +0.1 },
+
+  // Teen traits
   adventurous: { wander: +0.4 },
   rebellious: { wander: +0.3, talk: -0.1 },
   social: { talk: +0.4 },
@@ -49,6 +32,8 @@ const personalityBias: Record<
   creative: { talk: +0.1, idle: +0.1 },
   independent: { wander: +0.25 },
   stubborn: { idle: +0.2 },
+
+  // Adult traits
   responsible: { idle: +0.2 },
   calm: { idle: +0.3 },
   wise: { talk: +0.1, idle: +0.2 },
@@ -61,129 +46,147 @@ const personalityBias: Record<
   practical: { idle: +0.2 },
 };
 
-// --- Decide next state ---
-function decideDesire(m: any): MingletState {
-  const { hunger, happiness } = m.stats;
+const httpServer = createServer();
+const io = new Server(httpServer, { cors: { origin: "*" } });
 
-  if (hunger < 40 && Math.random() < 0.4) return "eating";
-  if (happiness < 50 && Math.random() < 0.3) return "playing";
+mongoose
+  .connect(process.env.MONGODB_URI!)
+  .then(() => console.log("✅ Connected to MongoDB"))
+  .catch((err) => console.error("❌ MongoDB Error:", err));
 
-  let wanderChance = 0.3;
-  let talkChance = 0.3;
-  let idleChance = 0.4;
-
-  const traits = m.personality || [];
-  traits.forEach((trait: string) => {
-    const bias = personalityBias[trait];
-    if (bias) {
-      wanderChance += bias.wander ?? 0;
-      talkChance += bias.talk ?? 0;
-      idleChance += bias.idle ?? 0;
-    }
-  });
-
-  const total = wanderChance + talkChance + idleChance;
-  wanderChance /= total;
-  talkChance /= total;
-  idleChance /= total;
-
-  const r = Math.random();
-  if (r < wanderChance) return "wander";
-  if (r < wanderChance + talkChance) return "talk";
-  return "idle";
-}
-
-// --- Keep track of last state and duration in memory ---
-const lastStateMap = new Map<
-  string,
-  { state: string; changedAt: number; duration: number }
->();
-const MIN_DURATION = 2000; // 2 seconds
-const MAX_DURATION = 5000; // 5 seconds
-
-// --- Simulation loop ---
-setInterval(async () => {
-  const minglets = await Minglet.find();
-  const now = Date.now();
-
-  for (const m of minglets) {
-    if (!m.isAlive) continue;
-
-    const prev = lastStateMap.get(m._id.toString());
-    let prevState = prev?.state || m.state;
-    let prevTime = prev?.changedAt || 0;
-    let duration =
-      prev?.duration ||
-      Math.floor(Math.random() * (MAX_DURATION - MIN_DURATION)) + MIN_DURATION;
-
-    // Only pick new state if duration has passed
-    let newState = prevState;
-    if (now - prevTime >= duration) {
-      newState = decideDesire(m);
-      duration =
-        Math.floor(Math.random() * (MAX_DURATION - MIN_DURATION)) +
-        MIN_DURATION; // new random duration
-      prevTime = now;
-
-      console.log(
-        `🐾 Minglet ${
-          m._id
-        } changed from "${prevState}" to "${newState}" after ${(
-          (now - (prev?.changedAt || 0)) /
-          1000
-        ).toFixed(2)}s`
-      );
-    }
-
-    lastStateMap.set(m._id.toString(), {
-      state: newState,
-      changedAt: prevTime,
-      duration,
-    });
-
-    // Update minglet in memory
-    m.state = newState;
-
-    if (m.state === "wander") {
-      const step = Math.floor(Math.random() * 10) + 5;
-
-      const dirs: Direction[] = ["up", "down", "left", "right"];
-      const dir = dirs[Math.floor(Math.random() * dirs.length)];
-
-      let dx = 0;
-      let dy = 0;
-      if (dir === "up") dy = -step;
-      if (dir === "down") dy = step;
-      if (dir === "left") dx = -step;
-      if (dir === "right") dx = step;
-
-      m.x = Math.max(20, Math.min(1280 - 20, m.x + dx));
-      m.y = Math.max(20, Math.min(720 - 20, m.y + dy));
-      m.direction = dir;
-    }
-
-    if (m.state === "eating") {
-      m.stats.hunger = Math.min(m.stats.hunger + 1, 100);
-    }
-
-    if (m.state === "playing") {
-      m.stats.happiness = Math.min(m.stats.happiness + 1, 100);
-    }
-
-    m.lastUpdated = new Date();
-  }
-
-  io.emit("minglets_update", minglets);
-}, 1000); // run every 1 second
-
-// --- Socket ---
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   console.log("🔌 Client connected:", socket.id);
-  socket.on("disconnect", () =>
-    console.log("❌ Client disconnected:", socket.id)
-  );
+
+  // Send initial minglets
+  const minglets = await MingletModel.find();
+  socket.emit("minglets:init", minglets);
+
+  socket.on("disconnect", () => {
+    console.log("❌ Client disconnected:", socket.id);
+  });
 });
 
-httpServer.listen(4000, () => {
-  console.log("✅ Socket server running at http://localhost:4000");
+// 🚀 Movement + State + Stats Loop
+setInterval(async () => {
+  const minglets = await MingletModel.find();
+
+  const updated = await Promise.all(
+    minglets.map(async (m: IMinglet) => {
+      // ⛔ Skip dead Minglets completely
+      if (!m.isAlive) {
+        return m;
+      }
+
+      // Decrease state timer
+      m.stateTimer = Math.max(0, m.stateTimer - 1);
+
+      if (m.stateTimer === 0) {
+        // ⚡ Weighted state selection
+        const baseStates: IMinglet["currentState"][] = [
+          "wander",
+          "idle",
+          "talk",
+          "eating",
+          "playing",
+        ];
+
+        const stateWeights: Record<string, number> = {
+          wander: 1,
+          idle: 1,
+          talk: 1,
+          eating: 0,  // default disabled
+          playing: 0, // default disabled
+        };
+
+        // 📌 Hunger influence → allow eating only if hunger < 40
+        if (m.stats.hunger < 40) {
+          stateWeights.eating = 2; // enable eating with bias
+        }
+
+        // 📌 Happiness influence → allow playing only if happiness < 40
+        if (m.stats.happiness < 40) {
+          stateWeights.playing = 2; // enable playing with bias
+        }
+
+        // 📌 Personality bias
+        if (m.personality && Array.isArray(m.personality)) {
+          m.personality.forEach((trait) => {
+            const bias = personalityBias[trait];
+            if (bias) {
+              for (const [state, effect] of Object.entries(bias)) {
+                stateWeights[state] = (stateWeights[state] || 0) + effect;
+              }
+            }
+          });
+        }
+
+        // 📌 Weighted random selection
+        const totalWeight = Object.values(stateWeights).reduce(
+          (a, b) => a + Math.max(0, b),
+          0
+        );
+        let rnd = Math.random() * totalWeight;
+        let chosenState: IMinglet["currentState"] = "idle";
+
+        for (const state of baseStates) {
+          rnd -= Math.max(0, stateWeights[state]);
+          if (rnd <= 0) {
+            chosenState = state as IMinglet["currentState"];
+            break;
+          }
+        }
+
+        m.currentState = chosenState;
+        m.stateTimer = Math.floor(Math.random() * 5) + 3; // 3–7 seconds
+      }
+
+      // 🥕 Eating → restore hunger
+      if (m.currentState === "eating") {
+        m.stats.hunger = Math.min(100, m.stats.hunger + 5);
+      }
+
+      // 🎮 Playing → restore happiness
+      if (m.currentState === "playing") {
+        m.stats.happiness = Math.min(100, m.stats.happiness + 5);
+      }
+
+      // 🚶 Movement only if wandering
+      if (m.currentState === "wander") {
+        if (Math.random() < 0.2) {
+          const dirs: IMinglet["direction"][] = ["up", "down", "left", "right"];
+          m.direction = dirs[Math.floor(Math.random() * dirs.length)];
+        }
+
+        switch (m.direction) {
+          case "up":
+            m.y = Math.max(0, m.y - 5);
+            break;
+          case "down":
+            m.y = Math.min(600, m.y + 5);
+            break;
+          case "left":
+            m.x = Math.max(0, m.x - 5);
+            break;
+          case "right":
+            m.x = Math.min(800, m.x + 5);
+            break;
+        }
+      }
+
+      await m.save();
+      return m;
+    })
+  );
+
+  io.emit("minglets:update", updated);
+
+  console.log(
+    `🔄 Updated ${
+      updated.length
+    } minglets at ${new Date().toLocaleTimeString()}`
+  );
+}, 1000); // every 1 second
+
+httpServer.listen(3001, () => {
+  console.log("🚀 Socket server running on :3001");
 });

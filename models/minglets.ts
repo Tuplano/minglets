@@ -25,11 +25,11 @@ export interface IMinglet extends Document {
   currentState: "wander" | "idle" | "talk" | "eating" | "playing";
   stateTimer: number;
   lastUpdated: Date;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;   // ✅ optional because timestamps auto-add
+  updatedAt?: Date;   // ✅ optional
 }
 
-const MingletSchema: Schema = new Schema(
+const MingletSchema = new Schema<IMinglet>(
   {
     name: { type: String, required: true, trim: true },
     ownerWallet: { type: String, required: true, index: true },
@@ -41,16 +41,8 @@ const MingletSchema: Schema = new Schema(
 
     x: { type: Number, default: 0 },
     y: { type: Number, default: 0 },
-    direction: {
-      type: String,
-      enum: ["up", "down", "left", "right"],
-      default: "down",
-    },
-    currentState: {
-      type: String,
-      enum: ["wander", "idle", "talk", "eating", "playing"],
-      default: "wander",
-    },
+    direction: { type: String, enum: ["up", "down", "left", "right"], default: "down" },
+    currentState: { type: String, enum: ["wander","idle","talk","eating","playing"], default: "wander" },
     stateTimer: { type: Number, default: 0 },
 
     lastUpdated: { type: Date, default: Date.now },
@@ -58,5 +50,5 @@ const MingletSchema: Schema = new Schema(
   { timestamps: true }
 );
 
-export default mongoose.models.Minglet ||
-  mongoose.model<IMinglet>("Minglet", MingletSchema);
+export default (mongoose.models.Minglet as mongoose.Model<IMinglet>) 
+  || mongoose.model<IMinglet>("Minglet", MingletSchema);

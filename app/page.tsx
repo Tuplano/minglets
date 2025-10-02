@@ -1,65 +1,45 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import { IMinglet } from "@/models/minglets";
-import { ITree } from "@/models/trees";
 import MingletOverlay from "./components/mingletsOverlay";
 import ProfileOverlay from "./components/mingletProfileOverlay";
 import MingletWorld from "./components/simulation/mingletWorld";
 import { usePhantomWallet } from "./hooks/usePhantomWallet";
 
-// --- Socket Connection ---
-const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL!, {
-  transports: ["websocket"],
-});
+const socket = io("http://localhost:3001");
 
 export default function Simulation() {
   const [minglets, setMinglets] = useState<IMinglet[]>([]);
-  const [trees, setTrees] = useState<ITree[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedMinglet, setSelectedMinglet] = useState<IMinglet | null>(null);
 
-  // --- Wallet Hook ---
   const { wallet, connectWallet } = usePhantomWallet({
-    onConnect: () => {
-      console.log("🔑 Wallet connected, re-fetching trees...");
-      fetchTrees();
-    },
-    onDisconnect: () => {
-      console.log("🔒 Wallet disconnected, clearing data.");
-      setMinglets([]);
-      setTrees([]);
-    },
+    onConnect: () => socket.emit("minglets:request"),
+    onDisconnect: () => setMinglets([]),
   });
 
-  // --- Fetch Trees ---
-  const fetchTrees = async () => {
-    try {
-      console.log("🌱 Fetching trees...");
-      const res = await fetch("/api/assets/getTrees");
-      if (!res.ok) throw new Error("Failed to fetch trees");
-      const data: ITree[] = await res.json();
-      console.log("🌳 Trees fetched:", data);
-      setTrees(data);
-    } catch (err) {
-      console.error("❌ Failed to fetch trees:", err);
-    }
-  };
-
-  // --- Fetch Trees on Mount ---
   useEffect(() => {
-    fetchTrees();
-  }, []);
+    socket.on("minglets:init", (data: IMinglet[]) => {
+      console.log("🚀 Initial Minglets:", data);
+      setMinglets(data);
+      setLoading(false);
+    });
 
-  // --- Listen for Minglet Updates from Socket ---
-  useEffect(() => {
-    socket.on("minglets_update", (data: IMinglet[]) => {
-      console.log("🐒 Minglets update received:", data);
+    socket.on("minglets:update", (data: IMinglet[]) => {
+      console.log("🔄 Update received:", data.map(m => ({
+        name: m.name,
+        state: m.currentState,
+        hunger: m.stats.hunger,
+        happiness: m.stats.happiness
+      })));
       setMinglets(data);
     });
 
     return () => {
-      socket.off("minglets_update");
+      socket.off("minglets:init");
+      socket.off("minglets:update");
     };
   }, []);
 
@@ -67,8 +47,7 @@ export default function Simulation() {
     <div className="relative w-full h-screen">
       <MingletWorld
         minglets={minglets}
-        trees={trees}
-        loading={false}
+        loading={loading}
         onSelectMinglet={setSelectedMinglet}
       />
 
@@ -76,12 +55,15 @@ export default function Simulation() {
         wallet={wallet}
         connectWallet={connectWallet}
         minglets={minglets}
-        loading={false}
-        refreshMinglets={() => {
-          console.log("🔄 Manual refresh triggered");
-          fetchTrees();
-        }}
+        loading={loading}
+        refreshMinglets={() => socket.emit("minglets:request")}
       />
+
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+          <p className="text-white text-xl">Loading simulation...</p>
+        </div>
+      )}
 
       <ProfileOverlay
         minglet={selectedMinglet}
